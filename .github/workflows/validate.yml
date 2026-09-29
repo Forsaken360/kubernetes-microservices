@@ -1,1 +1,28 @@
-# placeholder
+name: Validate manifests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  kustomize-build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@v4
+
+    - name: Build base and overlays
+      run: |
+        set -euo pipefail
+        for target in base overlays/dev overlays/prod; do
+          echo "--- kustomize build: $target ---"
+          if command -v kustomize >/dev/null 2>&1; then
+            kustomize build "$target" > /dev/null
+          elif command -v kubectl >/dev/null 2>&1; then
+            kubectl kustomize "$target" > /dev/null
+          else
+            echo "ERROR: neither 'kustomize' nor 'kubectl' is available on this runner" >&2
+            exit 1
+          fi
+        done
+        echo "All targets built successfully."
