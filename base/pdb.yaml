@@ -1,0 +1,14 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api-pdb
+  labels:
+    app.kubernetes.io/name: api
+    app.kubernetes.io/part-of: microservices-demo
+spec:
+  # Keeps at least one api pod serving during voluntary disruptions
+  # (node drains, cluster upgrades). Prod overlay raises this to 2.
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: api

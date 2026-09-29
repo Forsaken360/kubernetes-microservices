@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  labels:
+    app.kubernetes.io/name: worker
+    app.kubernetes.io/part-of: microservices-demo
+spec:
+  # Background worker: intentionally no Service — it is not reachable
+  # from outside the cluster. It calls the api Service internally.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+        app.kubernetes.io/name: worker
+        app.kubernetes.io/part-of: microservices-demo
+    spec:
+      serviceAccountName: app-sa
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: worker
+        image: alpine:3.20
+        command: ["/bin/sh", "-c"]
+        args:
+        - while true; do echo "$(date -u +%FT%TZ) worker heartbeat"; sleep "${WORKER_INTERVAL_SECONDS:-30}"; done
+        envFrom:
+        - configMapRef:
+            name: app-config
+        env:
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: API_KEY
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
