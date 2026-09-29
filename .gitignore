@@ -1,0 +1,19 @@
+# OS / editor noise
+.DS_Store
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Local kubeconfigs and cluster state — never commit these
+kubeconfig
+*.kubeconfig
+.kube/
+
+# Rendered manifest output
+/rendered/
+/dist/
+
+# Logs
+*.log
