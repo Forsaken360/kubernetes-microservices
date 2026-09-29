@@ -1,1 +1,70 @@
-# placeholder
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+- ../../base
+
+# HA sizing for prod: 3 api replicas behind the HPA, 2 workers.
+replicas:
+- name: api
+  count: 3
+- name: worker
+  count: 2
+
+patches:
+# Larger resource budget for prod traffic.
+- target:
+    kind: Deployment
+    name: api
+  patch: |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: api
+    spec:
+      template:
+        spec:
+          containers:
+          - name: api
+            resources:
+              requests:
+                cpu: 250m
+                memory: 256Mi
+              limits:
+                cpu: 1000m
+                memory: 512Mi
+# Pin the production hostname explicitly (same value as the base default;
+# kept explicit so the prod overlay documents its public endpoint).
+- target:
+    kind: Ingress
+    name: api-ingress
+  patch: |-
+    - op: replace
+      path: /spec/rules/0/host
+      value: api.example.com
+    - op: replace
+      path: /spec/tls/0/hosts/0
+      value: api.example.com
+# Wider autoscaling bounds for prod.
+- target:
+    kind: HorizontalPodAutoscaler
+    name: api
+  patch: |-
+    apiVersion: autoscaling/v2
+    kind: HorizontalPodAutoscaler
+    metadata:
+      name: api
+    spec:
+      minReplicas: 3
+      maxReplicas: 10
+# Stricter disruption budget: always keep at least 2 api pods serving.
+- target:
+    kind: PodDisruptionBudget
+    name: api-pdb
+  patch: |-
+    apiVersion: policy/v1
+    kind: PodDisruptionBudget
+    metadata:
+      name: api-pdb
+    spec:
+      minAvailable: 2
