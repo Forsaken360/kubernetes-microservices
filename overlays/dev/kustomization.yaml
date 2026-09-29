@@ -1,1 +1,79 @@
-# placeholder
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+- ../../base
+
+# Single api replica in dev; the HPA patch below keeps autoscaling consistent.
+replicas:
+- name: api
+  count: 1
+
+patches:
+# Lighter resource footprint for dev.
+- target:
+    kind: Deployment
+    name: api
+  patch: |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: api
+    spec:
+      template:
+        spec:
+          containers:
+          - name: api
+            resources:
+              requests:
+                cpu: 50m
+                memory: 64Mi
+              limits:
+                cpu: 200m
+                memory: 128Mi
+# Dev ingress host. JSON 6902 patch: the Ingress `rules` list merges on `host`,
+# so a strategic-merge patch would ADD a rule instead of replacing it.
+- target:
+    kind: Ingress
+    name: api-ingress
+  patch: |-
+    - op: replace
+      path: /spec/rules/0/host
+      value: api.dev.example.com
+    - op: replace
+      path: /spec/tls/0/hosts/0
+      value: api.dev.example.com
+# Use the staging issuer for the dev hostname.
+- target:
+    kind: Ingress
+    name: api-ingress
+  patch: |-
+    apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      name: api-ingress
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-staging
+# Keep autoscaling bounds consistent with the single-replica dev sizing.
+- target:
+    kind: HorizontalPodAutoscaler
+    name: api
+  patch: |-
+    apiVersion: autoscaling/v2
+    kind: HorizontalPodAutoscaler
+    metadata:
+      name: api
+    spec:
+      minReplicas: 1
+      maxReplicas: 2
+# Debug logging in dev.
+- target:
+    kind: ConfigMap
+    name: app-config
+  patch: |-
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: app-config
+    data:
+      LOG_LEVEL: debug
